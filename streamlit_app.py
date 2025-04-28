@@ -56,7 +56,7 @@ if not company_data.empty:
     st.dataframe(display_cols, use_container_width=True)
 
     # === Date Source Selection ===
-    date_choice = st.radio("Select Listing Date Source for Numerology:", ("NSE LISTING DATE", "BSE LISTING DATE"))
+    date_choice = st.radio("Select Listing Date Source for Numerology:", ("NSE LISTING DATE", "BSE LISTING DATE",  "DATE OF INCORPORATION"))
 
     # Extract and parse listing date
     listing_date = pd.to_datetime(company_data[date_choice].values[0])
