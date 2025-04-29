@@ -168,7 +168,7 @@ elif filter_mode == "Filter by Numerology":
         st.info("No companies found with matching numerology dates.")
 
 elif filter_mode == "View Nifty/BankNifty OHLC":
-    st.subheader("📈 Nifty & BankNifty OHLC Viewer (Excel + Live)")
+    st.subheader("📈 Nifty & BankNifty OHLC Viewer")
 
     import yfinance as yf
     from datetime import datetime
