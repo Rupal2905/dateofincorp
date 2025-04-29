@@ -277,7 +277,18 @@ elif filter_mode == "View Nifty/BankNifty OHLC":
 
     # Display filtered, aligned data
     st.markdown("### 🔢 OHLC + Numerology Alignment")
-    st.dataframe(filtered_merged, use_container_width=True)
+    # Reorder columns
+    ordered_cols = ['Volatility %', 'Close %', 'Open', 'High', 'Low', 'Close']
+    numerology_cols = ['BN', 'DN', 'SN', 'HP', 'Day Number']
+    # Include date as a column if it's not already (currently index)
+    filtered_merged_reset = filtered_merged.reset_index()
+
+    # Final column order
+    final_order = ['Date'] + numerology_cols + ordered_cols
+    existing_cols = [col for col in final_order if col in filtered_merged_reset.columns]
+    
+    # Display reordered table
+    st.dataframe(filtered_merged_reset[existing_cols], use_container_width=True)
 
 
 
