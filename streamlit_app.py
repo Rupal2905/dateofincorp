@@ -289,7 +289,7 @@ elif filter_mode == "View Nifty/BankNifty OHLC":
 
     # Desired column order (adjust as needed if columns vary)
     desired_order = [
-        'date',
+        'Date',
         'BN', 'DN', 
         'SN', 'HP', 
         'Day Number', 'BN Planet',
