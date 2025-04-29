@@ -136,13 +136,35 @@ else:
     ]
 
     st.markdown("### 🎯 Matching Companies")
-    if not matching_stocks.empty:
-        display_cols = matching_stocks.drop(columns=['Series', 'Company Name', 'ISIN Code', 'IPO TIMING ON NSE'], errors='ignore')
+
+if not matching_stocks.empty:
+    highlight_dates = set(pd.to_datetime(matching_numerology_dates))
+
+    display_cols = matching_stocks.drop(columns=['Series', 'Company Name', 'ISIN Code', 'IPO TIMING ON NSE'], errors='ignore')
+
+    # Keep original datetime for comparison
+    original_dates = display_cols[['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION']].copy()
+
+    # Format for display
+    for col in ['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION']:
+        if col in display_cols.columns:
+            display_cols[col] = display_cols[col].dt.strftime('%Y-%m-%d')
+
+    # Define highlight function
+    def highlight_matching_dates(row):
+        styles = []
         for col in ['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION']:
-            if col in display_cols.columns:
-                display_cols[col] = display_cols[col].dt.strftime('%Y-%m-%d')
-        st.dataframe(display_cols, use_container_width=True)
-    else:
-        st.info("No companies found with matching numerology dates.")
+            date_val = original_dates.at[row.name, col]
+            if pd.notnull(date_val) and date_val in highlight_dates:
+                styles.append('background-color: yellow')
+            else:
+                styles.append('')
+        return styles
+
+    styled_df = display_cols.style.apply(highlight_matching_dates, axis=1, subset=['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION'])
+
+    st.dataframe(styled_df, use_container_width=True)
+else:
+    st.info("No companies found with matching numerology dates.")
     
 
