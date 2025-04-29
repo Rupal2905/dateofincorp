@@ -20,58 +20,129 @@ def load_numerology_data():
     df['date'] = pd.to_datetime(df['date'], dayfirst=True, errors='coerce')
     return df
 
+# Load data
 stock_df = load_stock_data()
 numerology_df = load_numerology_data()
 
 st.title("📊 Stock Screener - IPO & Numerology Insight")
 
-# === Sector Filter ===
-sectors = stock_df['SECTOR'].dropna().unique()
-selected_sector = st.selectbox("Select Sector (optional):", ["All"] + sorted(sectors))
+# === Toggle between filtering methods ===
+filter_mode = st.radio("Choose Filter Mode:", ["Filter by Sector/Symbol", "Filter by Numerology"])
 
-# === Symbol Filter (based on selected sector) ===
-if selected_sector != "All":
-    filtered_symbols = stock_df[stock_df['SECTOR'] == selected_sector]['Symbol'].dropna().unique()
-else:
-    filtered_symbols = stock_df['Symbol'].dropna().unique()
+if filter_mode == "Filter by Sector/Symbol":
+    # === Sector Filter ===
+    sectors = stock_df['SECTOR'].dropna().unique()
+    selected_sector = st.selectbox("Select Sector:", ["All"] + sorted(sectors))
 
-selected_symbol = st.selectbox("Select Symbol:", sorted(filtered_symbols))
+    show_all_in_sector = st.checkbox("Show all companies in this sector", value=True)
 
-# === Filter Stock Data ===
-company_data = stock_df[stock_df['Symbol'] == selected_symbol]
-if selected_sector != "All":
-    company_data = company_data[company_data['SECTOR'] == selected_sector]
-
-if not company_data.empty:
-    st.write("### Company Info")
-
-    # Drop unnecessary columns
-    display_cols = company_data.drop(columns=['Series', 'Company Name', 'ISIN Code', 'IPO TIMING ON NSE'], errors='ignore')
-
-    # Format date columns
-    for col in ['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION']:
-        if col in display_cols.columns:
-            display_cols[col] = display_cols[col].dt.strftime('%Y-%m-%d')
-
-    st.dataframe(display_cols, use_container_width=True)
-
-    # === Date Source Selection ===
-    date_choice = st.radio("Select Listing Date Source for Numerology:", ("NSE LISTING DATE", "BSE LISTING DATE",  "DATE OF INCORPORATION"))
-
-    # Extract and parse listing date
-    listing_date = pd.to_datetime(company_data[date_choice].values[0])
-
-    if pd.notnull(listing_date):
-        st.write(f"### Numerology Data for {listing_date.strftime('%Y-%m-%d')}")
-
-        matched_numerology = numerology_df[numerology_df['date'] == listing_date]
-
-        if not matched_numerology.empty:
-            st.dataframe(matched_numerology, use_container_width=True)
-        else:
-            st.warning("No numerology data found for this date.")
+    if selected_sector != "All":
+        sector_filtered_df = stock_df[stock_df['SECTOR'] == selected_sector]
     else:
-        st.warning(f"{date_choice} is not available for this company.")
+        sector_filtered_df = stock_df.copy()
+
+    if not show_all_in_sector:
+        filtered_symbols = sector_filtered_df['Symbol'].dropna().unique()
+        selected_symbol = st.selectbox("Select Symbol:", sorted(filtered_symbols))
+        company_data = sector_filtered_df[sector_filtered_df['Symbol'] == selected_symbol]
+    else:
+        company_data = sector_filtered_df
+
+    # === Display Company Data ===
+    if not company_data.empty:
+        st.write("### Company Info")
+        display_cols = company_data.drop(columns=['Series', 'Company Name', 'ISIN Code', 'IPO TIMING ON NSE'], errors='ignore')
+        for col in ['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION']:
+            if col in display_cols.columns:
+                display_cols[col] = display_cols[col].dt.strftime('%Y-%m-%d')
+        st.dataframe(display_cols, use_container_width=True)
+
+        if len(company_data) == 1:
+            date_choice = st.radio("Select Listing Date Source for Numerology:", ("NSE LISTING DATE", "BSE LISTING DATE", "DATE OF INCORPORATION"))
+            listing_date = pd.to_datetime(company_data[date_choice].values[0])
+            if pd.notnull(listing_date):
+                st.write(f"### Numerology Data for {listing_date.strftime('%Y-%m-%d')}")
+                matched_numerology = numerology_df[numerology_df['date'] == listing_date]
+                if not matched_numerology.empty:
+                    st.dataframe(matched_numerology, use_container_width=True)
+                else:
+                    st.warning("No numerology data found for this date.")
+            else:
+                st.warning(f"{date_choice} is not available for this company.")
+        else:
+            st.info("Select a single symbol (uncheck the box) to see numerology data.")
+    else:
+        st.warning("No matching data found.")
+
 else:
-    st.warning("No matching data found.")
+    st.markdown("### 🔢 Filter by Numerology Values (Live & Horizontal Layout)")
+
+
+    # Step 1: Start with full data
+    filtered_numerology = numerology_df.copy()
+
+    # Prepare layout
+    col1, col2, col3, col4, col5 = st.columns(5)
+
+    # === BN Filter ===
+    with col1:
+        bn_options = ["All"] + sorted(numerology_df['BN'].dropna().unique())
+        selected_bn = st.selectbox("BN", bn_options)
+        if selected_bn != "All":
+            filtered_numerology = filtered_numerology[filtered_numerology['BN'] == selected_bn]
+
+    # === DN Filter ===
+    with col2:
+        dn_options = ["All"] + sorted(filtered_numerology['DN'].dropna().unique())
+        selected_dn = st.selectbox("DN", dn_options)
+        if selected_dn != "All":
+            filtered_numerology = filtered_numerology[filtered_numerology['DN'] == selected_dn]
+
+    # === SN Filter ===
+    with col3:
+        sn_options = ["All"] + sorted(filtered_numerology['SN'].dropna().unique())
+        selected_sn = st.selectbox("SN", sn_options)
+        if selected_sn != "All":
+            filtered_numerology = filtered_numerology[filtered_numerology['SN'] == selected_sn]
+
+    # === HP Filter ===
+    with col4:
+        hp_options = ["All"] + sorted(filtered_numerology['HP'].dropna().unique())
+        selected_hp = st.selectbox("HP", hp_options)
+        if selected_hp != "All":
+            filtered_numerology = filtered_numerology[filtered_numerology['HP'] == selected_hp]
+
+    # === Day Number Filter ===
+    with col5:
+        dayn_options = ["All"] + sorted(filtered_numerology['Day Number'].dropna().unique())
+        selected_dayn = st.selectbox("Day Number", dayn_options)
+        if selected_dayn != "All":
+            filtered_numerology = filtered_numerology[filtered_numerology['Day Number'] == selected_dayn]
+
+    # === Show Filtered Numerology Table ===
+    st.markdown("### 🔮 Filtered Numerology Table")
+    if not filtered_numerology.empty:
+        st.dataframe(filtered_numerology, use_container_width=True)
+    else:
+        st.warning("No matching numerology records found.")
+
+    # === Match Dates to Stock Data ===
+    matching_numerology_dates = filtered_numerology['date'].dropna().unique()
+
+    matching_stocks = stock_df[
+        stock_df['NSE LISTING DATE'].isin(matching_numerology_dates) |
+        stock_df['BSE LISTING DATE'].isin(matching_numerology_dates) |
+        stock_df['DATE OF INCORPORATION'].isin(matching_numerology_dates)
+    ]
+
+    st.markdown("### 🎯 Matching Companies")
+    if not matching_stocks.empty:
+        display_cols = matching_stocks.drop(columns=['Series', 'Company Name', 'ISIN Code', 'IPO TIMING ON NSE'], errors='ignore')
+        for col in ['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION']:
+            if col in display_cols.columns:
+                display_cols[col] = display_cols[col].dt.strftime('%Y-%m-%d')
+        st.dataframe(display_cols, use_container_width=True)
+    else:
+        st.info("No companies found with matching numerology dates.")
+    
 
