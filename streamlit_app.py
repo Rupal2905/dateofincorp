@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import yfinance as yf
 
 # Set wide layout
 st.set_page_config(page_title="Stock Screener - IPO & Numerology", layout="wide")
@@ -27,7 +28,7 @@ numerology_df = load_numerology_data()
 st.title("📊 Stock Screener - IPO & Numerology Insight")
 
 # === Toggle between filtering methods ===
-filter_mode = st.radio("Choose Filter Mode:", ["Filter by Sector/Symbol", "Filter by Numerology"])
+filter_mode = st.radio("Choose Filter Mode:", ["Filter by Sector/Symbol", "Filter by Numerology", "View Nifty/BankNifty OHLC"])
 
 if filter_mode == "Filter by Sector/Symbol":
     # === Sector Filter ===
@@ -74,9 +75,8 @@ if filter_mode == "Filter by Sector/Symbol":
     else:
         st.warning("No matching data found.")
 
-else:
+elif filter_mode == "Filter by Numerology":
     st.markdown("### 🔢 Filter by Numerology Values (Live & Horizontal Layout)")
-
 
     # Step 1: Start with full data
     filtered_numerology = numerology_df.copy()
@@ -137,34 +137,118 @@ else:
 
     st.markdown("### 🎯 Matching Companies")
 
-if not matching_stocks.empty:
-    highlight_dates = set(pd.to_datetime(matching_numerology_dates))
+    if not matching_stocks.empty:
+        highlight_dates = set(pd.to_datetime(matching_numerology_dates))
 
-    display_cols = matching_stocks.drop(columns=['Series', 'Company Name', 'ISIN Code', 'IPO TIMING ON NSE'], errors='ignore')
+        display_cols = matching_stocks.drop(columns=['Series', 'Company Name', 'ISIN Code', 'IPO TIMING ON NSE'], errors='ignore')
 
-    # Keep original datetime for comparison
-    original_dates = display_cols[['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION']].copy()
+        # Keep original datetime for comparison
+        original_dates = display_cols[['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION']].copy()
 
-    # Format for display
-    for col in ['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION']:
-        if col in display_cols.columns:
-            display_cols[col] = display_cols[col].dt.strftime('%Y-%m-%d')
-
-    # Define highlight function
-    def highlight_matching_dates(row):
-        styles = []
+        # Format for display
         for col in ['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION']:
-            date_val = original_dates.at[row.name, col]
-            if pd.notnull(date_val) and date_val in highlight_dates:
-                styles.append('background-color: #a0e178')
-            else:
-                styles.append('')
-        return styles
+            if col in display_cols.columns:
+                display_cols[col] = display_cols[col].dt.strftime('%Y-%m-%d')
 
-    styled_df = display_cols.style.apply(highlight_matching_dates, axis=1, subset=['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION'])
+        # Define highlight function
+        def highlight_matching_dates(row):
+            styles = []
+            for col in ['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION']:
+                date_val = original_dates.at[row.name, col]
+                if pd.notnull(date_val) and date_val in highlight_dates:
+                    styles.append('background-color: #a0e178')  # Light green
+                else:
+                    styles.append('')
+            return styles
 
-    st.dataframe(styled_df, use_container_width=True)
-else:
-    st.info("No companies found with matching numerology dates.")
+        styled_df = display_cols.style.apply(highlight_matching_dates, axis=1, subset=['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION'])
+
+        st.dataframe(styled_df, use_container_width=True)
+    else:
+        st.info("No companies found with matching numerology dates.")
+
+elif filter_mode == "View Nifty/BankNifty OHLC":
+    # Index symbol mapping
+    index_symbols = {
+        "Nifty 50": "^NSEI",
+        "Bank Nifty": "^NSEBANK"
+    }
+
+    # Sidebar selection
+    selected_index = st.sidebar.selectbox("Select Index", list(index_symbols.keys()))
+
+    # Fetch maximum OHLC data using yfinance
+    @st.cache_data(ttl=3600)
+    def fetch_ohlc_data(symbol):
+        data = yf.download(symbol, period="max", interval="1d")
+        data.reset_index(inplace=True)
+        data.rename(columns={
+            'Volatility %': 'VolatilityPercent',
+            'Close %': 'ClosePercent'
+        }, inplace=True)
+
+        data = data[['Date', 'Open', 'High', 'Low', 'Close']].copy()
+        data['VolatilityPercent'] = ((data['High'] - data['Low']) / data['Low']) * 100
+        data['ClosePercent'] = data['Close'].pct_change() * 100
+        data['VolatilityPercent'] = data['VolatilityPercent'].round(2)
+        data['ClosePercent'] = data['ClosePercent'].round(2)
+
+        # Reorder columns
+        data = data[['Date', 'VolatilityPercent', 'ClosePercent', 'Open', 'High', 'Low', 'Close']]
+        return data
+
+    symbol = index_symbols[selected_index]
+    ohlc_data = fetch_ohlc_data(symbol)
+
+    # === Filtering ===
+    st.subheader("🔍 Filter Data")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        vol_filter_op = st.selectbox("Volatility Filter", ["None", "<", ">", "=", "<=", ">="])
+
+    with col2:
+        vol_filter_val = st.number_input("Volatility Value", value=0.0)
+
+    with col3:
+        close_filter_op = st.selectbox("Close Filter", ["None", "<", ">", "=", "<=", ">="])
+
+    with col4:
+        close_filter_val = st.number_input("Close Value", value=0.0)
+
+    # Apply filters using standard Python conditions (not query)
+    filtered_data = ohlc_data.copy()
+
+    if vol_filter_op != "None":
+        if vol_filter_op == "<":
+            filtered_data = filtered_data[filtered_data['VolatilityPercent'] < vol_filter_val]
+        elif vol_filter_op == "<=":
+            filtered_data = filtered_data[filtered_data['VolatilityPercent'] <= vol_filter_val]
+        elif vol_filter_op == "==":
+            filtered_data = filtered_data[filtered_data['VolatilityPercent'] == vol_filter_val]
+        elif vol_filter_op == ">=":
+            filtered_data = filtered_data[filtered_data['VolatilityPercent'] >= vol_filter_val]
+        elif vol_filter_op == ">":
+            filtered_data = filtered_data[filtered_data['VolatilityPercent'] > vol_filter_val]
+
+    if close_filter_op != "None":
+        if close_filter_op == "<":
+            filtered_data = filtered_data[filtered_data['ClosePercent'] < close_filter_val]
+        elif close_filter_op == "<=":
+            filtered_data = filtered_data[filtered_data['ClosePercent'] <= close_filter_val]
+        elif close_filter_op == "==":
+            filtered_data = filtered_data[filtered_data['ClosePercent'] == close_filter_val]
+        elif close_filter_op == ">=":
+            filtered_data = filtered_data[filtered_data['ClosePercent'] >= close_filter_val]
+        elif close_filter_op == ">":
+            filtered_data = filtered_data[filtered_data['ClosePercent'] > close_filter_val]
+
+    # Show result
+    st.dataframe(filtered_data, use_container_width=True)
+
+    # Optional chart
+    if st.checkbox("📊 Show Closing Price Chart"):
+        st.line_chart(filtered_data.set_index("Date")["Close"])
     
 
