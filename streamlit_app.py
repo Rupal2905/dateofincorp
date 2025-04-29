@@ -168,87 +168,120 @@ elif filter_mode == "Filter by Numerology":
         st.info("No companies found with matching numerology dates.")
 
 elif filter_mode == "View Nifty/BankNifty OHLC":
-    # Index symbol mapping
-    index_symbols = {
-        "Nifty 50": "^NSEI",
-        "Bank Nifty": "^NSEBANK"
-    }
+    st.subheader("📈 Nifty & BankNifty OHLC Viewer (Excel + Live)")
 
-    # Sidebar selection
-    selected_index = st.sidebar.selectbox("Select Index", list(index_symbols.keys()))
+    import yfinance as yf
+    from datetime import datetime
 
-    # Fetch maximum OHLC data using yfinance
+    index_choice = st.selectbox("Select Index:", ["Nifty 50", "Bank Nifty"])
+
+    if index_choice == "Nifty 50":
+        file = "nifty.xlsx"
+        symbol = "^NSEI"
+    else:
+        file = "banknifty.xlsx"
+        symbol = "^NSEBANK"
+
     @st.cache_data(ttl=3600)
-    def fetch_ohlc_data(symbol):
-        data = yf.download(symbol, period="max", interval="1d")
-        data.reset_index(inplace=True)
-        data.rename(columns={
-            'Volatility %': 'VolatilityPercent',
-            'Close %': 'ClosePercent'
-        }, inplace=True)
+    def load_excel_data(file):
+        df = pd.read_excel(file, index_col=0)
+        df.index = pd.to_datetime(df.index)
+        return df
 
-        data = data[['Date', 'Open', 'High', 'Low', 'Close']].copy()
-        data['VolatilityPercent'] = ((data['High'] - data['Low']) / data['Low']) * 100
-        data['ClosePercent'] = data['Close'].pct_change() * 100
-        data['VolatilityPercent'] = data['VolatilityPercent'].round(2)
-        data['ClosePercent'] = data['ClosePercent'].round(2)
+    # Load data from file
+    excel_data = load_excel_data(file)
+    last_excel_date = excel_data.index[-1].date()
 
-        # Reorder columns
-        data = data[['Date', 'VolatilityPercent', 'ClosePercent', 'Open', 'High', 'Low', 'Close']]
-        return data
+    # Fetch data from yfinance only after last_excel_date
+    @st.cache_data(ttl=3600)
+    def fetch_yfinance_data(symbol, start_date):
+        yf_data = yf.download(symbol, start=start_date, interval="1d")[['Open', 'High', 'Low', 'Close']]
+        return yf_data
 
-    symbol = index_symbols[selected_index]
-    ohlc_data = fetch_ohlc_data(symbol)
+    today = datetime.today().date()
+    if last_excel_date < today:
+        yf_data = fetch_yfinance_data(symbol, start_date=last_excel_date + pd.Timedelta(days=1))
+        full_data = pd.concat([excel_data, yf_data])
+    else:
+        full_data = excel_data.copy()
 
-    # === Filtering ===
-    st.subheader("🔍 Filter Data")
+    # Calculate Volatility % and Close %
+    full_data['Volatility %'] = ((full_data['High'] - full_data['Low']) / full_data['Low']) * 100
+    full_data['Close %'] = full_data['Close'].pct_change() * 100
 
-    col1, col2, col3, col4 = st.columns(4)
+    full_data['Volatility %'] = full_data['Volatility %'].round(2)
+    full_data['Close %'] = full_data['Close %'].round(2)
+
+    # Reorder columns: Volatility % and Close % first
+    reordered_cols = ['Volatility %', 'Close %', 'Open', 'High', 'Low', 'Close']
+    full_data = full_data[reordered_cols]
+
+    # Filters in horizontal layout
+    st.markdown("### 🔍 Filter OHLC Table")
+    col1, col2, col3 = st.columns(3)
 
     with col1:
-        vol_filter_op = st.selectbox("Volatility Filter", ["None", "<", ">", "=", "<=", ">="])
+        vol_op = st.selectbox("Volatility Operator", ["All", "<", "<=", ">", ">=", "=="])
+        vol_val = st.number_input("Volatility % Value", value=2.0, step=0.1)
 
     with col2:
-        vol_filter_val = st.number_input("Volatility Value", value=0.0)
+        close_op = st.selectbox("Close % Operator", ["All", "<", "<=", ">", ">=", "=="])
+        close_val = st.number_input("Close % Value", value=0.5, step=0.1)
 
-    with col3:
-        close_filter_op = st.selectbox("Close Filter", ["None", "<", ">", "=", "<=", ">="])
+    filtered_data = full_data.copy()
 
-    with col4:
-        close_filter_val = st.number_input("Close Value", value=0.0)
+    if vol_op != "All":
+        filtered_data = filtered_data.query(f"`Volatility %` {vol_op} @vol_val")
 
-    # Apply filters using standard Python conditions (not query)
-    filtered_data = ohlc_data.copy()
+    if close_op != "All":
+        filtered_data = filtered_data.query(f"`Close %` {close_op} @close_val")
 
-    if vol_filter_op != "None":
-        if vol_filter_op == "<":
-            filtered_data = filtered_data[filtered_data['VolatilityPercent'] < vol_filter_val]
-        elif vol_filter_op == "<=":
-            filtered_data = filtered_data[filtered_data['VolatilityPercent'] <= vol_filter_val]
-        elif vol_filter_op == "==":
-            filtered_data = filtered_data[filtered_data['VolatilityPercent'] == vol_filter_val]
-        elif vol_filter_op == ">=":
-            filtered_data = filtered_data[filtered_data['VolatilityPercent'] >= vol_filter_val]
-        elif vol_filter_op == ">":
-            filtered_data = filtered_data[filtered_data['VolatilityPercent'] > vol_filter_val]
+        # Merge numerology data with OHLC data on date
+    numerology_aligned = numerology_df.copy()
+    numerology_aligned = numerology_aligned.set_index('date')
+    numerology_aligned.index = pd.to_datetime(numerology_aligned.index)
+    
+    full_data_merged = filtered_data.merge(numerology_aligned, left_index=True, right_index=True, how='left')
 
-    if close_filter_op != "None":
-        if close_filter_op == "<":
-            filtered_data = filtered_data[filtered_data['ClosePercent'] < close_filter_val]
-        elif close_filter_op == "<=":
-            filtered_data = filtered_data[filtered_data['ClosePercent'] <= close_filter_val]
-        elif close_filter_op == "==":
-            filtered_data = filtered_data[filtered_data['ClosePercent'] == close_filter_val]
-        elif close_filter_op == ">=":
-            filtered_data = filtered_data[filtered_data['ClosePercent'] >= close_filter_val]
-        elif close_filter_op == ">":
-            filtered_data = filtered_data[filtered_data['ClosePercent'] > close_filter_val]
+    # Numerology filters
+    st.markdown("### 🧮 Numerology Filters")
+    ncol1, ncol2, ncol3, ncol4, ncol5 = st.columns(5)
 
-    # Show result
-    st.dataframe(filtered_data, use_container_width=True)
+    with ncol1:
+        bn_filter = st.selectbox("BN", ["All"] + sorted(numerology_df['BN'].dropna().unique()))
 
-    # Optional chart
+    with ncol2:
+        dn_filter = st.selectbox("DN", ["All"] + sorted(numerology_df['DN'].dropna().unique()))
+
+    with ncol3:
+        sn_filter = st.selectbox("SN", ["All"] + sorted(numerology_df['SN'].dropna().unique()))
+
+    with ncol4:
+        hp_filter = st.selectbox("HP", ["All"] + sorted(numerology_df['HP'].dropna().unique()))
+
+    with ncol5:
+        dayn_filter = st.selectbox("Day Number", ["All"] + sorted(numerology_df['Day Number'].dropna().unique()))
+
+    # Apply numerology filters
+    filtered_merged = full_data_merged.copy()
+    if bn_filter != "All":
+        filtered_merged = filtered_merged[filtered_merged['BN'] == bn_filter]
+    if dn_filter != "All":
+        filtered_merged = filtered_merged[filtered_merged['DN'] == dn_filter]
+    if sn_filter != "All":
+        filtered_merged = filtered_merged[filtered_merged['SN'] == sn_filter]
+    if hp_filter != "All":
+        filtered_merged = filtered_merged[filtered_merged['HP'] == hp_filter]
+    if dayn_filter != "All":
+        filtered_merged = filtered_merged[filtered_merged['Day Number'] == dayn_filter]
+
+    # Display filtered, aligned data
+    st.markdown("### 🔢 OHLC + Numerology Alignment")
+    st.dataframe(filtered_merged, use_container_width=True)
+
+
+
     if st.checkbox("📊 Show Closing Price Chart"):
-        st.line_chart(filtered_data.set_index("Date")["Close"])
+        st.line_chart(filtered_data['Close'])
     
 
