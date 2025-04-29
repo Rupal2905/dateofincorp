@@ -156,7 +156,7 @@ if not matching_stocks.empty:
         for col in ['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION']:
             date_val = original_dates.at[row.name, col]
             if pd.notnull(date_val) and date_val in highlight_dates:
-                styles.append('background-color: pink')
+                styles.append('background-color: #a0e178')
             else:
                 styles.append('')
         return styles
