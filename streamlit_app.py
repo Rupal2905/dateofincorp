@@ -279,13 +279,26 @@ elif filter_mode == "View Nifty/BankNifty OHLC":
     st.markdown("### 🔢 OHLC + Numerology Alignment")
     # Reorder columns
     ordered_cols = ['Volatility %', 'Close %', 'Open', 'High', 'Low', 'Close']
-    numerology_cols = ['BN', 'DN', 'SN', 'HP', 'Day Number']
+    numerology_cols = ['BN', 'DN', 'SN', 'HP', 'Day Number', 'BN Planet','DN Planet', 'SN Planet', 'HP Planet', 'Day Number Planet']
     # Include date as a column if it's not already (currently index)
     filtered_merged_reset = filtered_merged.reset_index()
 
     # Final column order
     final_order = ['Date'] + numerology_cols + ordered_cols
     existing_cols = [col for col in final_order if col in filtered_merged_reset.columns]
+
+    # Desired column order (adjust as needed if columns vary)
+    desired_order = [
+        'date',
+        'BN', 'DN', 
+        'SN', 'HP', 
+        'Day Number', 'BN Planet',
+        'DN Planet',  'SN Planet',
+        'HP Planet', 'Day Number Planet',
+        'Volatility %', 'Close %',
+        'Open', 'High',
+        'Low', 'Close'
+    ]
     
     # Display reordered table
     st.dataframe(filtered_merged_reset[existing_cols], use_container_width=True, hide_index=True)
