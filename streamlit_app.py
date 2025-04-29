@@ -288,7 +288,7 @@ elif filter_mode == "View Nifty/BankNifty OHLC":
     existing_cols = [col for col in final_order if col in filtered_merged_reset.columns]
     
     # Display reordered table
-    st.dataframe(filtered_merged_reset[existing_cols], use_container_width=True)
+    st.dataframe(filtered_merged_reset[existing_cols], use_container_width=True, hide_index=True)
 
 
 
