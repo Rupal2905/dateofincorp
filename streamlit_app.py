@@ -96,7 +96,7 @@ if filter_mode == "Filter by Sector/Symbol":
                 cols = ['Symbol'] + [col for col in cols if col != 'Symbol']
                 all_numerology_df = all_numerology_df[cols]
                 
-                st.dataframe(all_numerology_df, use_container_width=True)
+                st.dataframe(all_numerology_df, use_container_width=True, hide_index=True)
             else:
                 st.warning("No numerology data found for selected date field across these companies.")
 
