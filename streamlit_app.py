@@ -85,13 +85,17 @@ if filter_mode == "Filter by Sector/Symbol":
                     if not numerology_row.empty:
                         temp = numerology_row.copy()
                         temp['Symbol'] = row['Symbol']
-                        temp['Company'] = row.get('Company Name', row['Symbol'])
-                        temp['Date Used'] = date_val.strftime('%Y-%m-%d')
                         combined_numerology.append(temp)
 
             if combined_numerology:
                 st.write(f"### Numerology Data for All Companies in {selected_sector} (Using {date_choice_all})")
                 all_numerology_df = pd.concat(combined_numerology, ignore_index=True)
+
+                # Reorder columns: Symbol, Company, Date Used first
+                cols = all_numerology_df.columns.tolist()
+                cols = ['Symbol'] + [col for col in cols if col != 'Symbol']
+                all_numerology_df = all_numerology_df[cols]
+                
                 st.dataframe(all_numerology_df, use_container_width=True)
             else:
                 st.warning("No numerology data found for selected date field across these companies.")
