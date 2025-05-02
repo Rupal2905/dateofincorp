@@ -59,6 +59,7 @@ if filter_mode == "Filter by Sector/Symbol":
         st.dataframe(display_cols, use_container_width=True)
 
         if len(company_data) == 1:
+            # Single company selected — choose one date
             date_choice = st.radio("Select Listing Date Source for Numerology:", ("NSE LISTING DATE", "BSE LISTING DATE", "DATE OF INCORPORATION"))
             listing_date = pd.to_datetime(company_data[date_choice].values[0])
             if pd.notnull(listing_date):
@@ -70,10 +71,38 @@ if filter_mode == "Filter by Sector/Symbol":
                     st.warning("No numerology data found for this date.")
             else:
                 st.warning(f"{date_choice} is not available for this company.")
+
+        elif show_all_in_sector:
+            # Multiple companies shown (whole sector) — apply one date field to all
+            date_choice_all = st.selectbox("Select Date Field for Numerology Match:", ("NSE LISTING DATE", "BSE LISTING DATE", "DATE OF INCORPORATION"))
+
+            combined_numerology = []
+
+            for idx, row in company_data.iterrows():
+                date_val = row[date_choice_all]
+                if pd.notnull(date_val):
+                    numerology_row = numerology_df[numerology_df['date'] == pd.to_datetime(date_val)]
+                    if not numerology_row.empty:
+                        temp = numerology_row.copy()
+                        temp['Symbol'] = row['Symbol']
+                        temp['Company'] = row.get('Company Name', row['Symbol'])
+                        temp['Date Used'] = date_val.strftime('%Y-%m-%d')
+                        combined_numerology.append(temp)
+
+            if combined_numerology:
+                st.write(f"### Numerology Data for All Companies in {selected_sector} (Using {date_choice_all})")
+                all_numerology_df = pd.concat(combined_numerology, ignore_index=True)
+                st.dataframe(all_numerology_df, use_container_width=True)
+            else:
+                st.warning("No numerology data found for selected date field across these companies.")
+
         else:
+            # Multiple companies manually selected but show_all_in_sector is False
             st.info("Select a single symbol (uncheck the box) to see numerology data.")
+
     else:
         st.warning("No matching data found.")
+
 
 elif filter_mode == "Filter by Numerology":
     st.markdown("### 🔢 Filter by Numerology Values (Live & Horizontal Layout)")
