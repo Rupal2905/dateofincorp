@@ -168,7 +168,11 @@ if filter_mode == "Filter by Sector/Symbol":
 elif filter_mode == "Filter by Numerology":
     st.markdown("### 🔢 Filter by Numerology Values (Live & Horizontal Layout)")
 
-    # Step 1: Start with full data
+    # Step 1: Ask how to match date: NSE/BSE/Inc
+    date_match_option = st.selectbox("Select Date Type to Match Companies:", 
+                                 ["NSE LISTING DATE", "BSE LISTING DATE", "DATE OF INCORPORATION"])
+
+    # Step 2: Start with full numerology data
     filtered_numerology = numerology_df.copy()
 
     # Prepare layout
@@ -216,44 +220,51 @@ elif filter_mode == "Filter by Numerology":
     else:
         st.warning("No matching numerology records found.")
 
-    # === Match Dates to Stock Data ===
-    matching_numerology_dates = filtered_numerology['date'].dropna().unique()
+    # Create a mapping of dates to numerology rows (after filter)
+    filtered_numerology_map = filtered_numerology.set_index('date')
 
-    matching_stocks = stock_df[
-        stock_df['NSE LISTING DATE'].isin(matching_numerology_dates) |
-        stock_df['BSE LISTING DATE'].isin(matching_numerology_dates) |
-        stock_df['DATE OF INCORPORATION'].isin(matching_numerology_dates)
-    ]
+    # Loop through stock_df and match per company by selected date
+    matching_records = []
+
+    for _, row in stock_df.iterrows():
+        match_date = row.get(date_match_option)
+        if pd.notnull(match_date) and match_date in filtered_numerology_map.index:
+            numerology_match = filtered_numerology_map.loc[match_date]
+        
+            # Handle multiple matches (if any) from numerology_df
+            if isinstance(numerology_match, pd.DataFrame):
+                numerology_match = numerology_match.iloc[0]
+
+            combined_row = row.to_dict()
+            combined_row.update(numerology_match.to_dict())
+            combined_row['Matching Date Source'] = date_match_option
+            matching_records.append(combined_row)
+
+    # Create final DataFrame
+    matching_stocks = pd.DataFrame(matching_records)
 
     st.markdown("### 🎯 Matching Companies")
 
     if not matching_stocks.empty:
-        highlight_dates = set(pd.to_datetime(matching_numerology_dates))
 
         display_cols = matching_stocks.drop(columns=['Series', 'Company Name', 'ISIN Code', 'IPO TIMING ON NSE'], errors='ignore')
-
-        # Keep original datetime for comparison
-        original_dates = display_cols[['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION']].copy()
 
         # Format for display
         for col in ['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION']:
             if col in display_cols.columns:
                 display_cols[col] = display_cols[col].dt.strftime('%Y-%m-%d')
 
-        # Define highlight function
-        def highlight_matching_dates(row):
-            styles = []
-            for col in ['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION']:
-                date_val = original_dates.at[row.name, col]
-                if pd.notnull(date_val) and date_val in highlight_dates:
-                    styles.append('background-color: #a0e178')  # Light green
-                else:
-                    styles.append('')
-            return styles
+        # Optional: format date columns
+        for col in ['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION']:
+            if col in matching_stocks.columns:
+                matching_stocks[col] = pd.to_datetime(matching_stocks[col], errors='coerce').dt.strftime('%Y-%m-%d')
 
-        styled_df = display_cols.style.apply(highlight_matching_dates, axis=1, subset=['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION'])
+        # Reorder to show date source
+        cols_order = ['Symbol', date_match_option, 'BN', 'DN', 'SN', 'HP', 'Day Number'] + \
+             [col for col in matching_stocks.columns if col not in ['Symbol', 'Matching Date Source', date_match_option, 'BN', 'DN', 'SN', 'HP', 'Day Number']]
 
-        st.dataframe(styled_df, use_container_width=True)
+        st.dataframe(matching_stocks[cols_order], use_container_width=True)
+
     else:
         st.info("No companies found with matching numerology dates.")
 
@@ -398,5 +409,6 @@ elif filter_mode == "View Nifty/BankNifty OHLC":
     if st.checkbox("📊 Show Closing Price Chart"):
         st.line_chart(filtered_data['Close'])
     
+
 
 
