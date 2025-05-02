@@ -58,51 +58,81 @@ if filter_mode == "Filter by Sector/Symbol":
                 display_cols[col] = display_cols[col].dt.strftime('%Y-%m-%d')
         st.dataframe(display_cols, use_container_width=True)
 
-        if len(company_data) == 1:
-            # Single company selected — choose one date
-            date_choice = st.radio("Select Listing Date Source for Numerology:", ("NSE LISTING DATE", "BSE LISTING DATE", "DATE OF INCORPORATION"))
-            listing_date = pd.to_datetime(company_data[date_choice].values[0])
-            if pd.notnull(listing_date):
-                st.write(f"### Numerology Data for {listing_date.strftime('%Y-%m-%d')}")
-                matched_numerology = numerology_df[numerology_df['date'] == listing_date]
-                if not matched_numerology.empty:
-                    st.dataframe(matched_numerology, use_container_width=True)
-                else:
-                    st.warning("No numerology data found for this date.")
-            else:
-                st.warning(f"{date_choice} is not available for this company.")
+        # Date choice: Single date or All Dates (NSE, BSE, Incorporation)
+        date_choice = st.radio("Select Listing Date Source for Numerology:", 
+                               ("NSE LISTING DATE", "BSE LISTING DATE", "DATE OF INCORPORATION", "By All Dates"))
 
-        elif show_all_in_sector:
-            # Multiple companies shown (whole sector) — apply one date field to all
-            date_choice_all = st.selectbox("Select Date Field for Numerology Match:", ("NSE LISTING DATE", "BSE LISTING DATE", "DATE OF INCORPORATION"))
-
+        if date_choice == "By All Dates":
+            # If "By All Dates" is selected, we show three rows for each symbol
             combined_numerology = []
-
             for idx, row in company_data.iterrows():
-                date_val = row[date_choice_all]
-                if pd.notnull(date_val):
-                    numerology_row = numerology_df[numerology_df['date'] == pd.to_datetime(date_val)]
-                    if not numerology_row.empty:
-                        temp = numerology_row.copy()
-                        temp['Symbol'] = row['Symbol']
-                        combined_numerology.append(temp)
+                for date_column in ['NSE LISTING DATE', 'BSE LISTING DATE', 'DATE OF INCORPORATION']:
+                    date_val = row[date_column]
+                    if pd.notnull(date_val):
+                        numerology_row = numerology_df[numerology_df['date'] == pd.to_datetime(date_val)]
+                        if not numerology_row.empty:
+                            temp = numerology_row.copy()
+                            temp['Symbol'] = row['Symbol']
+                            temp['Date Type'] = date_column
+                            combined_numerology.append(temp)
 
             if combined_numerology:
-                st.write(f"### Numerology Data for All Companies in {selected_sector} (Using {date_choice_all})")
+                st.write(f"### Numerology Data for All Companies in {selected_sector} (Using All Dates)")
                 all_numerology_df = pd.concat(combined_numerology, ignore_index=True)
 
-                # Reorder columns: Symbol, Company, Date Used first
+                # Reorder columns: Symbol, Date Type, Date Used first
                 cols = all_numerology_df.columns.tolist()
                 cols = ['Symbol'] + [col for col in cols if col != 'Symbol']
                 all_numerology_df = all_numerology_df[cols]
-                
+
                 st.dataframe(all_numerology_df, use_container_width=True, hide_index=True)
             else:
-                st.warning("No numerology data found for selected date field across these companies.")
-
+                st.warning("No numerology data found for selected dates across these companies.")
+        
         else:
-            # Multiple companies manually selected but show_all_in_sector is False
-            st.info("Select a single symbol (uncheck the box) to see numerology data.")
+            # Handle the case where a single date type (NSE/BSE/Inc) is selected
+            if len(company_data) == 1:
+                # Single company selected — choose one date
+                listing_date = pd.to_datetime(company_data[date_choice].values[0])
+                if pd.notnull(listing_date):
+                    st.write(f"### Numerology Data for {listing_date.strftime('%Y-%m-%d')}")
+                    matched_numerology = numerology_df[numerology_df['date'] == listing_date]
+                    if not matched_numerology.empty:
+                        st.dataframe(matched_numerology, use_container_width=True)
+                    else:
+                        st.warning("No numerology data found for this date.")
+                else:
+                    st.warning(f"{date_choice} is not available for this company.")
+
+            elif show_all_in_sector:
+                # Multiple companies shown (whole sector) — apply one date field to all
+                combined_numerology = []
+
+                for idx, row in company_data.iterrows():
+                    date_val = row[date_choice]
+                    if pd.notnull(date_val):
+                        numerology_row = numerology_df[numerology_df['date'] == pd.to_datetime(date_val)]
+                        if not numerology_row.empty:
+                            temp = numerology_row.copy()
+                            temp['Symbol'] = row['Symbol']
+                            combined_numerology.append(temp)
+
+                if combined_numerology:
+                    st.write(f"### Numerology Data for All Companies in {selected_sector} (Using {date_choice})")
+                    all_numerology_df = pd.concat(combined_numerology, ignore_index=True)
+
+                    # Reorder columns: Symbol, Company, Date Used first
+                    cols = all_numerology_df.columns.tolist()
+                    cols = ['Symbol'] + [col for col in cols if col != 'Symbol']
+                    all_numerology_df = all_numerology_df[cols]
+
+                    st.dataframe(all_numerology_df, use_container_width=True, hide_index=True)
+                else:
+                    st.warning("No numerology data found for selected date field across these companies.")
+
+            else:
+                # Multiple companies manually selected but show_all_in_sector is False
+                st.info("Select a single symbol (uncheck the box) to see numerology data.")
 
     else:
         st.warning("No matching data found.")
