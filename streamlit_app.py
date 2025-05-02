@@ -74,6 +74,9 @@ if filter_mode == "Filter by Sector/Symbol":
                             temp = numerology_row.copy()
                             temp['Symbol'] = row['Symbol']
                             temp['Date Type'] = date_column
+                            temp['NSE age'] = row['NSE age']  # Add NSE AGE column
+                            temp['BSE age'] = row['BSE age']  # Add BSE AGE column
+                            temp['DOC age'] = row['DOC age']  # Add DOC AGE column
                             combined_numerology.append(temp)
 
             if combined_numerology:
@@ -82,7 +85,7 @@ if filter_mode == "Filter by Sector/Symbol":
 
                 # Reorder columns: Symbol, Date Type, Date Used first
                 cols = all_numerology_df.columns.tolist()
-                cols = ['Symbol'] + [col for col in cols if col != 'Symbol']
+                cols = ['Symbol', 'Date Type', 'NSE age', 'BSE age', 'DOC age'] + [col for col in all_numerology_df.columns if col not in ['Symbol', 'Date Type', 'NSE age', 'BSE age', 'DOC age']]
                 all_numerology_df = all_numerology_df[cols]
 
                 st.dataframe(all_numerology_df, use_container_width=True, hide_index=True)
@@ -96,8 +99,18 @@ if filter_mode == "Filter by Sector/Symbol":
                 listing_date = pd.to_datetime(company_data[date_choice].values[0])
                 if pd.notnull(listing_date):
                     st.write(f"### Numerology Data for {listing_date.strftime('%Y-%m-%d')}")
-                    matched_numerology = numerology_df[numerology_df['date'] == listing_date]
+                    matched_numerology = numerology_df[numerology_df['date'] == listing_date].copy()
                     if not matched_numerology.empty:
+                        matched_numerology['Symbol'] = company_data['Symbol'].values[0]
+                        matched_numerology['Date Type'] = date_choice
+
+                        if date_choice == "NSE LISTING DATE":
+                            matched_numerology['NSE age'] = company_data['NSE age'].values[0]
+                        elif date_choice == "BSE LISTING DATE":
+                            matched_numerology['BSE age'] = company_data['BSE age'].values[0]
+                        elif date_choice == "DATE OF INCORPORATION":
+                            matched_numerology['DOC age'] = company_data['DOC age'].values[0]
+                            
                         st.dataframe(matched_numerology, use_container_width=True)
                     else:
                         st.warning("No numerology data found for this date.")
@@ -115,18 +128,32 @@ if filter_mode == "Filter by Sector/Symbol":
                         if not numerology_row.empty:
                             temp = numerology_row.copy()
                             temp['Symbol'] = row['Symbol']
+                            temp['Date Type'] = date_choice
+
+                            if date_choice == "NSE LISTING DATE":
+                                temp['NSE age'] = row['NSE age']
+                            elif date_choice == "BSE LISTING DATE":
+                                temp['BSE age'] = row['BSE age']
+                            elif date_choice == "DATE OF INCORPORATION":
+                                temp['DOC age'] = row['DOC age']
+
                             combined_numerology.append(temp)
 
                 if combined_numerology:
                     st.write(f"### Numerology Data for All Companies in {selected_sector} (Using {date_choice})")
                     all_numerology_df = pd.concat(combined_numerology, ignore_index=True)
 
-                    # Reorder columns: Symbol, Company, Date Used first
-                    cols = all_numerology_df.columns.tolist()
-                    cols = ['Symbol'] + [col for col in cols if col != 'Symbol']
-                    all_numerology_df = all_numerology_df[cols]
+                    # Move Symbol, Date Type and relevant Age column to front
+                    cols_to_front = ['Symbol', 'Date Type']
+                    if date_choice == "NSE LISTING DATE":
+                        cols_to_front.append('NSE age')
+                    elif date_choice == "BSE LISTING DATE":
+                        cols_to_front.append('BSE age')
+                    elif date_choice == "DATE OF INCORPORATION":
+                        cols_to_front.append('DOC age')
 
-                    st.dataframe(all_numerology_df, use_container_width=True, hide_index=True)
+                    all_cols = cols_to_front + [col for col in all_numerology_df.columns if col not in cols_to_front]
+                    st.dataframe(all_numerology_df[all_cols], use_container_width=True, hide_index=True)
                 else:
                     st.warning("No numerology data found for selected date field across these companies.")
 
@@ -371,4 +398,5 @@ elif filter_mode == "View Nifty/BankNifty OHLC":
     if st.checkbox("📊 Show Closing Price Chart"):
         st.line_chart(filtered_data['Close'])
     
+
 
